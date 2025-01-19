@@ -1,0 +1,62 @@
+version: "3.9"
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - ml_api_1
+      - ml_api_2
+    networks:
+      - ml_network
+
+  ml_api_1:
+    build: ./app
+    container_name: ml_api_1
+    ports:
+      - "5001:5004"
+    networks:
+      - ml_network
+
+  ml_api_2:
+    build: ./app
+    container_name: ml_api_2
+    ports:
+      - "5002:5004"
+    networks:
+      - ml_network
+
+  load_test:
+    build:
+      context: ./load_test  # Pointing to the new load_test directory
+    container_name: load_test
+    depends_on:
+      - nginx
+      - ml_api_1
+      - ml_api_2
+    networks:
+      - ml_network
+    command: ["locust", "-f", "load_test.py", "--headless", "-u", "50", "-r", "10", "--run-time", "1m", "--host=http://nginx"]
+
+  monitor:
+    build:
+      context: ./load_test
+    container_name: monitor
+    depends_on:
+      - nginx
+      - ml_api_1
+      - ml_api_2
+    networks:
+      - ml_network
+    command: ["python", "monitor.py"]
+    volumes:
+      - ./monitor_output:/app/output
+
+
+networks:
+  ml_network:
+    driver: bridge
